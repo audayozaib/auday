@@ -22,5 +22,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 # نسخ المشروع كامل
 COPY . .
 
+
 # تشغيل البوت
 CMD ["python", "main.py"]
