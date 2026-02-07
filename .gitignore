@@ -1,0 +1,7 @@
+
+.env
+giveaway_bot.session
+
+__pycache__/
+*.pyc
+*.pyo
