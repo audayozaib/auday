@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 
+# مجلد العمل
 WORKDIR /app
 
-# تثبيت المتطلبات الأساسية للنظام (SSL + build tools)
+# مكتبات النظام (ضرورية لـ SSL + tgcrypto)
 RUN apt-get update && apt-get install -y \
     build-essential \
     libssl-dev \
@@ -10,12 +11,16 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# تثبيت المتطلبات البايثونية
+# نسخ المتطلبات
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# نسخ المشروع
+# تثبيت المكتبات
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir tgcrypto
+
+# نسخ المشروع كامل
 COPY . .
 
-# تشغيل التطبيق
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# تشغيل البوت
+CMD ["python", "main.py"]
