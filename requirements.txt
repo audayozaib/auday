@@ -1,6 +1,4 @@
-fastapi
-uvicorn
-motor==3.3.2
+python-telegram-bot==20.7
+yt-dlp==2023.12.30
 pymongo==4.6.1
-python-dotenv
-pyrogram
+aiohttp==3.9.1
