@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Constants
 TOKEN = os.environ.get("BOT_TOKEN","2073340985:AAEN9KGThjc6u2Aj7l0MRH7HsOXuRNMPx60")
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://audayozaib:SaXaXket2GECpLvR@giveaway.x2eabrg.mongodb.net/giveaway?retryWrites=true&w=majority")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://auday-production.up.railway.app/2073340985:AAEN9KGThjc6u2Aj7l0MRH7HsOXuRNMPx60")
 PORT = int(os.environ.get("PORT", 8080))
 ADMIN_ID = int(os.environ.get("ADMIN_ID", 778375826))  # معرف الأدمن الرئيسي
 
