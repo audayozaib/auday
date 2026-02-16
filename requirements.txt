@@ -3,3 +3,4 @@ yt-dlp==2023.12.30
 pymongo==4.6.1
 aiohttp==3.9.1
 aiofiles
+motor
