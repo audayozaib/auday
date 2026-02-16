@@ -15,19 +15,18 @@ import hashlib
 
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, 
-    InputFile, BotCommand, MenuButtonCommands
+    InputFile, BotCommand
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters, AIORateLimiter
 )
 from telegram.constants import ParseMode, ChatAction
-from telegram.error import Conflict, RetryAfter, BadRequest, TimedOut
+from telegram.error import Conflict, RetryAfter, BadRequest
 
-# استخدام motor للـ Async MongoDB بدلاً من pymongo المتزامن
+# استخدام motor للـ Async MongoDB
 from motor.motor_asyncio import AsyncIOMotorClient
-from bson import ObjectId
-import gridfs  # لتخزين الملفات الكبيرة في MongoDB
+# إزالة: import gridfs (غير مستخدم)
 
 # ==================== الإعدادات المتقدمة ====================
 logging.basicConfig(
@@ -43,17 +42,17 @@ logger = logging.getLogger(__name__)
 # Constants
 TOKEN = os.environ.get("BOT_TOKEN","2073340985:AAEN9KGThjc6u2Aj7l0MRH7HsOXuRNMPx60")
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://audayozaib:SaXaXket2GECpLvR@giveaway.x2eabrg.mongodb.net/giveaway?retryWrites=true&w=majority")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://auday-production.up.railway.app/2073340985:AAEN9KGThjc6u2Aj7l0MRH7HsOXuRNMPx60")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 PORT = int(os.environ.get("PORT", 8080))
 ADMIN_ID = int(os.environ.get("ADMIN_ID", 778375826))  # معرف الأدمن الرئيسي
 
 # حدود البوت
-MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB (حد تيليجرام)
-MAX_PLAYLIST_ITEMS = 5  # عدد العناصر المسموح من قائمة التشغيل
-MAX_DURATION_MINUTES = 120  # الحد الأقصى للمدة بالدقائق
-RATE_LIMIT_PER_MINUTE = 5  # عدد الطلبات المسموح بها في الدقيقة
+MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  
+MAX_PLAYLIST_ITEMS = 5  
+MAX_DURATION_MINUTES = 120  
+RATE_LIMIT_PER_MINUTE = 5  
 
-# ==================== قاعدة البيانات Async ====================
+# ==================== قاعدة البيانات Async (مصححة) ====================
 class AsyncDatabase:
     def __init__(self, uri: str = MONGO_URI):
         self.client = AsyncIOMotorClient(uri)
@@ -62,7 +61,8 @@ class AsyncDatabase:
         self.downloads = self.db["downloads"]
         self.cookies = self.db["cookies"]
         self.settings = self.db["settings"]
-        self.fs = gridfs.GridFS(self.db)  # لتخزين الملفات المؤقتة
+        # إزالة GridFS لأنه غير مستخدم ويسبب المشكلة
+        # self.fs = gridfs.GridFS(self.db)  # <-- تم إزالة هذا السطر
         
         # قائمة الحظر
         self.banned = self.db["banned"]
@@ -74,7 +74,7 @@ class AsyncDatabase:
         await self.downloads.create_index("status")
         await self.cookies.create_index("name", unique=True)
         await self.banned.create_index("user_id", unique=True)
-        await self.banned.create_index("expires_at", expireAfterSeconds=0)  # TTL index
+        await self.banned.create_index("expires_at", expireAfterSeconds=0)
         
     async def is_banned(self, user_id: int) -> bool:
         banned = await self.banned.find_one({"user_id": user_id})
@@ -122,11 +122,10 @@ class AsyncDatabase:
             "error": error,
             "metadata": metadata or {},
             "created_at": datetime.now(),
-            "expires_at": datetime.now() + timedelta(days=7)  # TTL للسجلات القديمة
+            "expires_at": datetime.now() + timedelta(days=7)
         })
     
     async def check_rate_limit(self, user_id: int) -> bool:
-        """التحقق من تجاوز المستخدم للحد المسموح"""
         one_minute_ago = datetime.now() - timedelta(minutes=1)
         count = await self.downloads.count_documents({
             "user_id": user_id,
@@ -158,8 +157,8 @@ class AdvancedDownloadManager:
     def __init__(self):
         self.temp_dir = Path(tempfile.gettempdir()) / "yt_bot"
         self.temp_dir.mkdir(exist_ok=True)
-        self.active_downloads = {}  # لتتبع التحميلات النشطة
-        self._semaphore = asyncio.Semaphore(3)  # تحديد عدد التحميلات المتزامنة
+        self.active_downloads = {}
+        self._semaphore = asyncio.Semaphore(3)
         
     def get_ydl_opts(self, format_type: str, quality: str = "best", 
                      cookies_path: Optional[str] = None,
@@ -175,7 +174,6 @@ class AdvancedDownloadManager:
             'fragment_retries': 3,
             'skip_unavailable_fragments': True,
             'keep_fragments': False,
-            'cookiesfrombrowser': None,  # يمكن تغييره لاحقاً
         }
         
         if cookies_path and os.path.exists(cookies_path):
@@ -184,7 +182,6 @@ class AdvancedDownloadManager:
         if progress_hook:
             opts['progress_hooks'] = [progress_hook]
             
-        # إعدادات الجودة
         if format_type == "audio":
             opts.update({
                 'format': 'bestaudio/best',
@@ -215,7 +212,6 @@ class AdvancedDownloadManager:
         return opts
     
     async def extract_info(self, url: str) -> Optional[dict]:
-        """استخراج معلومات الفيديو فقط بدون تحميل"""
         loop = asyncio.get_event_loop()
         try:
             with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
@@ -230,8 +226,7 @@ class AdvancedDownloadManager:
     
     async def download(self, url: str, format_type: str, quality: str = "best",
                       progress_callback: Optional[callable] = None) -> Dict[str, Any]:
-        """تحميل الفيديو مع دعم التقدم والإلغاء"""
-        async with self._semaphore:  # التحكم في عدد التحميلات المتزامنة
+        async with self._semaphore:
             download_id = hashlib.md5(f"{url}{format_type}{quality}".encode()).hexdigest()
             self.active_downloads[download_id] = {"cancelled": False}
             
@@ -264,7 +259,6 @@ class AdvancedDownloadManager:
                     if not info:
                         return {"success": False, "error": "No info extracted"}
                     
-                    # معالجة قائمة التشغيل
                     if 'entries' in info:
                         files = []
                         entries = list(info['entries'])[:MAX_PLAYLIST_ITEMS]
@@ -309,12 +303,10 @@ class AdvancedDownloadManager:
                 self.active_downloads.pop(download_id, None)
     
     async def cancel_download(self, download_id: str):
-        """إلغاء تحميل قيد التنفيذ"""
         if download_id in self.active_downloads:
             self.active_downloads[download_id]["cancelled"] = True
     
     async def cleanup(self, file_path: str):
-        """تنظيف الملفات المؤقتة"""
         try:
             path = Path(file_path)
             if path.exists():
@@ -341,24 +333,20 @@ dl_manager = AdvancedDownloadManager()
 
 # ==================== دوال مساعدة ====================
 async def send_action(update: Update, action: ChatAction):
-    """إرسال حالة الكتابة/الرفع"""
     try:
         await update.effective_chat.send_action(action)
     except:
         pass
 
 async def check_user_access(update: Update) -> bool:
-    """التحقق من صلاحية المستخدم"""
     user_id = update.effective_user.id
     
-    # التحقق من الحظر
     if await db.is_banned(user_id):
         await update.effective_message.reply_text(
             "⛔️ تم حظرك من استخدام البوت. تواصل مع المشرف."
         )
         return False
     
-    # التحقق من معدل الطلبات
     if not await db.check_rate_limit(user_id):
         await update.effective_message.reply_text(
             "⏳ لقد تجاوزت الحد المسموح من الطلبات (5 طلبات/دقيقة). انتظر قليلاً."
@@ -368,7 +356,6 @@ async def check_user_access(update: Update) -> bool:
     return True
 
 async def update_user_info(update: Update):
-    """تحديث معلومات المستخدم في قاعدة البيانات"""
     user = update.effective_user
     await db.users.update_one(
         {"user_id": user.id},
@@ -390,7 +377,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update_user_info(update)
     user = update.effective_user
     
-    # إنشاء قائمة الأوامر
     commands = [
         BotCommand("start", "بدء البوت"),
         BotCommand("help", "المساعدة"),
@@ -441,7 +427,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إلغاء المحادثة الحالية"""
     await update.message.reply_text(
         "❌ تم إلغاء العملية الحالية.\nاستخدم /start للبدء من جديد."
     )
@@ -543,7 +528,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     user_id = update.effective_user.id
     
-    # التحقق من صحة الرابط
     if not any(x in url for x in ["youtube.com", "youtu.be", "youtube.com/shorts"]):
         await update.message.reply_text(
             "❌ الرابط غير صحيح!\n"
@@ -554,19 +538,16 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     format_type = context.user_data.get("format", "video")
     quality = context.user_data.get("quality", "best")
     
-    # إرسال رسالة المعالجة
     processing_msg = await update.message.reply_text("⏳ جاري تحليل الرابط...")
     await send_action(update, ChatAction.UPLOAD_DOCUMENT)
     
     try:
-        # التحقق من المعلومات أولاً
         info = await dl_manager.extract_info(url)
         if not info:
             await processing_msg.edit_text("❌ لم يتم العثور على الفيديو أو الرابط غير صالح.")
             return ConversationHandler.END
         
-        # التحقق من المدة
-        duration = info.get('duration', 0) / 60  # بالدقائق
+        duration = info.get('duration', 0) / 60
         if duration > MAX_DURATION_MINUTES:
             await processing_msg.edit_text(
                 f"❌ الفيديو طويل جداً ({int(duration)} دقيقة).\n"
@@ -574,7 +555,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return ConversationHandler.END
         
-        # تحديث الرسالة
         title = info.get('title', 'Unknown')
         await processing_msg.edit_text(
             f"📥 جاري التحميل:\n*{title}*\n\n"
@@ -582,11 +562,10 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.MARKDOWN
         )
         
-        # دالة تحديث التقدم
         last_update = [0]
         async def progress_hook(percent, speed, eta):
             current = int(float(percent.replace('%', '')))
-            if current - last_update[0] >= 10:  # تحديث كل 10%
+            if current - last_update[0] >= 10:
                 last_update[0] = current
                 try:
                     await processing_msg.edit_text(
@@ -597,7 +576,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except:
                     pass
         
-        # بدء التحميل
         result = await dl_manager.download(url, format_type, quality, progress_hook)
         
         if not result["success"]:
@@ -606,7 +584,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await db.log_download(user_id, url, "failed", error=error_msg)
             return ConversationHandler.END
         
-        # معالجة قائمة التشغيل
         if result.get("is_playlist"):
             await processing_msg.edit_text(
                 f"📦 تم تحميل قائمة التشغيل: *{result['title']}*\n"
@@ -634,7 +611,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                     
                     await dl_manager.cleanup(file_path)
-                    await asyncio.sleep(1)  # تجنب الحظر
+                    await asyncio.sleep(1)
                     
                 except Exception as e:
                     logger.error(f"Error sending playlist file: {e}")
@@ -643,11 +620,9 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await db.log_download(user_id, url, "success_playlist", metadata={"count": result['count']})
             
         else:
-            # ملف واحد
             file_path = result["file_path"]
             file_size = result.get("file_size", 0)
             
-            # التحقق من الحجم
             if file_size > MAX_FILE_SIZE:
                 await processing_msg.edit_text(
                     "❌ حجم الملف كبير جداً (>2GB).\n"
@@ -656,7 +631,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await dl_manager.cleanup(file_path)
                 return ConversationHandler.END
             
-            # إرسال الصورة المصغرة أولاً إن وجدت
             if result.get('thumbnail') and format_type == "audio":
                 try:
                     async with aiohttp.ClientSession() as session:
@@ -670,7 +644,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await processing_msg.edit_text("📤 جاري إرسال الملف...")
             await send_action(update, ChatAction.UPLOAD_DOCUMENT)
             
-            # قراءة الملف وإرساله
             async with aiofiles.open(file_path, 'rb') as f:
                 file_data = await f.read()
             
@@ -706,7 +679,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
             )
             
-            # إعادة عرض قائمة التحميل مرة أخرى
             keyboard = [
                 [InlineKeyboardButton("🎵 تحميل صوت آخر", callback_data="fmt_audio")],
                 [InlineKeyboardButton("🎬 تحميل فيديو آخر", callback_data="fmt_video")]
@@ -732,7 +704,6 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_action(update, ChatAction.TYPING)
     
     try:
-        # استخدام yt-dlp للبحث
         ydl_opts = {
             'quiet': True,
             'extract_flat': True,
@@ -908,7 +879,6 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 # ==================== التشغيل الرئيسي ====================
 async def post_init(application: Application):
-    """تهيئة البوت عند البدء"""
     await db.init_indexes()
     logger.info("Bot started and database initialized")
 
@@ -917,7 +887,6 @@ def main():
         logger.error("No TOKEN provided!")
         return
     
-    # بناء التطبيق مع rate limiter
     application = (
         Application.builder()
         .token(TOKEN)
@@ -926,7 +895,6 @@ def main():
         .build()
     )
     
-    # Conversation handler رئيسي
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -967,7 +935,6 @@ def main():
     application.add_handler(conv_handler)
     application.add_error_handler(error_handler)
     
-    # تشغيل Webhook أو Polling
     if WEBHOOK_URL:
         logger.info(f"Starting webhook on port {PORT}")
         application.run_webhook(
