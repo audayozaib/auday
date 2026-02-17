@@ -4,7 +4,7 @@ import logging
 import uuid
 from io import BytesIO
 from datetime import datetime
-
+from telegram import InputFile  # <-- تأكد من وجوده
 import aiohttp
 import aiofiles
 from telegram import (
