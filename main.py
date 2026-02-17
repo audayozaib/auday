@@ -328,6 +328,7 @@ def main():
         .build()
     )
     
+    # ConversationHandler بدون per_message
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -344,11 +345,14 @@ def main():
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        per_message=True
+        # إزالة per_message=True أو جعله False
+        per_message=False,  # <-- تغيير هنا
+        per_chat=True,
+        per_user=True
     )
     
     application.add_handler(conv_handler)
-    application.add_error_handler(lambda u, c: logger.error(f"Error: {c.error}", exc_info=True))
+    application.add_error_handler(error_handler)
     
     if WEBHOOK_URL:
         application.run_webhook(
@@ -358,7 +362,10 @@ def main():
             allowed_updates=Update.ALL_TYPES
         )
     else:
-        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES, 
+            drop_pending_updates=True
+        )
 
 if __name__ == "__main__":
     main()
