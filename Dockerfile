@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# تثبيت FFmpeg فقط (بدون aria2)
+# تثبيت FFmpeg فقط (بدون aria2 المحظور)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     ca-certificates \
