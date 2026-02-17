@@ -1,10 +1,10 @@
-import os
-import asyncio
+"""
+أدوات مساعدة - بدون أي إشارة لـ aria2
+"""
 from pathlib import Path
-from telegram import InputFile
+
 
 async def cleanup_file(file_path: str):
-    """تنظيف ملف أو مجلد"""
     try:
         path = Path(file_path)
         if path.exists():
@@ -16,8 +16,8 @@ async def cleanup_file(file_path: str):
     except Exception as e:
         print(f"Cleanup error: {e}")
 
+
 async def safe_edit_message(query, text: str, reply_markup=None, parse_mode="Markdown"):
-    """تعديل رسالة بأمان"""
     try:
         from telegram.error import BadRequest
         current = query.message.text
@@ -29,8 +29,8 @@ async def safe_edit_message(query, text: str, reply_markup=None, parse_mode="Mar
     except Exception:
         pass
 
+
 def format_duration(seconds: int) -> str:
-    """تنسيق المدة"""
     minutes = seconds // 60
     secs = seconds % 60
     return f"{minutes}:{secs:02d}"
