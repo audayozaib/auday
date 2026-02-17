@@ -1,6 +1,7 @@
 import os
 import asyncio
 import functools
+import tempfile
 import hashlib
 import yt_dlp
 from pathlib import Path
