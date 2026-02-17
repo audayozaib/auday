@@ -3,5 +3,4 @@ yt-dlp>=2023.12.30
 motor>=3.3.0
 aiofiles>=23.0.0
 aiohttp>=3.9.0
-pymongo[srv]>=4.5.0  # <-- إضافة دعم SRV لـ Atlas
-certifi>=2023.7.22   # <-- شهادات SSL محدثة
+certifi>=2023.7.22
