@@ -1,15 +1,19 @@
+"""
+مدير التحميل - بدون أي إشارة لـ aria2
+"""
 import os
 import asyncio
 import functools
-import tempfile
 import hashlib
-import yt_dlp
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable
-from contextlib import asynccontextmanager
+
+import yt_dlp
+
 from exceptions import DownloadError, CancelledError, FileTooLargeError
 from config import TEMP_DIR, MAX_PLAYLIST_ITEMS, MAX_FILE_SIZE
 from validators import sanitize_filename
+
 
 class AdvancedDownloadManager:
     def __init__(self):
@@ -73,7 +77,7 @@ class AdvancedDownloadManager:
                 raise DownloadError("Copyright protected", "copyright")
             elif "private" in error_msg:
                 raise DownloadError("Private video", "private")
-            elif "unavailable" in error_msg or "not available" in error_msg:
+            elif "unavailable" in error_msg:
                 raise DownloadError("Not available", "unavailable")
             return None
     
@@ -85,22 +89,15 @@ class AdvancedDownloadManager:
             output_dir = self.temp_dir / download_id
             output_dir.mkdir(exist_ok=True)
             
-            last_progress = [0, "0%", "N/A", "N/A"]
-            
             def progress_hook(d):
                 if cancel_event and cancel_event.is_set():
                     raise CancelledError()
                 
-                if d['status'] == 'downloading':
-                    last_progress[0] = d.get('downloaded_bytes', 0)
-                    last_progress[1] = d.get('_percent_str', '0%')
-                    last_progress[2] = d.get('_speed_str', 'N/A')
-                    last_progress[3] = d.get('_eta_str', 'N/A')
-                    
-                    if progress_callback:
-                        asyncio.create_task(progress_callback(
-                            last_progress[1], last_progress[2], last_progress[3]
-                        ))
+                if d['status'] == 'downloading' and progress_callback:
+                    percent = d.get('_percent_str', '0%')
+                    speed = d.get('_speed_str', 'N/A')
+                    eta = d.get('_eta_str', 'N/A')
+                    asyncio.create_task(progress_callback(percent, speed, eta))
             
             try:
                 opts = self.get_ydl_opts(format_type, quality, str(output_dir), progress_hook)
@@ -140,7 +137,7 @@ class AdvancedDownloadManager:
                             filename = filename.rsplit('.', 1)[0] + '.mp3'
                         
                         if not os.path.exists(filename):
-                            raise DownloadError("File not created after download")
+                            raise DownloadError("File not created")
                         
                         file_size = os.path.getsize(filename)
                         if file_size > MAX_FILE_SIZE:
@@ -159,15 +156,17 @@ class AdvancedDownloadManager:
                         }
                         
             except CancelledError:
-                # تنظيف عند الإلغاء
+                import shutil
                 if output_dir.exists():
-                    import shutil
                     shutil.rmtree(output_dir, ignore_errors=True)
                 raise
             except Exception as e:
+                import shutil
                 if output_dir.exists():
-                    import shutil
                     shutil.rmtree(output_dir, ignore_errors=True)
+                if isinstance(e, (DownloadError, FileTooLargeError, CancelledError)):
+                    raise
                 raise DownloadError(str(e), "unknown")
+
 
 dl_manager = AdvancedDownloadManager()
